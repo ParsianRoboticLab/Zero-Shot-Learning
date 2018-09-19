@@ -6,13 +6,13 @@ from params import *
 def load_label(file_name):
     with open(file_name) as labels:
         content = labels.read().split('\n')
-    label_list = [x.split('\t')[0] for x in content]
+    label_list = [x.split('\t')[0] for x in content][:-1]
     return label_list
 
 def load_label_attr(file_name):
     with open(file_name) as labels:
         content = labels.read().split('\n')
-    label_attr = [list(map(float,x.split('\t')[1:])) for x in content]
+    label_attr = [list(map(float,x.split('\t')[1:])) for x in content][:-1]
     atrs = np.array(label_attr[0])
     label_attr = label_attr[1:]
     for i in label_attr:
