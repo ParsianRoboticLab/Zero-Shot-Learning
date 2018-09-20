@@ -1,5 +1,6 @@
 from sklearn import tree
 import numpy as np
+from PIL import Image
 from params import *
 
 
@@ -46,6 +47,31 @@ def atr_to_label(atr):
     tree = dsc_tree_train(load_label_attr('attributes_per_class.txt'),load_label('attributes_per_class.txt'))
     return dsc_tree_prediction(tree,atr)
 
+def create_train_pics_dict():
+    global train_pics_dict
+    file_name = "train.txt"
+    with open(file_name) as pics_labels:
+        content = pics_labels.read().split('\n')
+    pics_list = [x.split('\t')[0] for x in content][:-1]
+    lables_list = [x.split('\t')[1:] for x in content][:-1]
+    for pic in pics_list:
+        train_pics_dict[pic] = lables_list[pics_list.index(pic)]
+def create_test_pics_list():
+    global test_pics_list
+    file_name = "image.txt"
+    with open(file_name) as pics_labels:
+        test_pics_list = pics_labels.read().split('\n')[:-1]
+def load_pic(pic_name,train_flag):
+    if train_flag:
+        pic = "train/"+pic_name
+    else:
+        pic = "test/"+pic_name
+    return Image.open(pic)
+
+def initialize():
+    create_label_to_atr_dict()
+    create_test_pics_list()
+    create_train_pics_dict()
 # def write_submition(img_name,label,write_in_new_file_flag):
 
 
