@@ -21,17 +21,7 @@ def load_label_attr(file_name):
         atrs = np.vstack((atrs,ii))
     return atrs
 
-def dsc_tree_train(X,y):
-    attr_clf = tree.DecisionTreeClassifier()
-    attr_clf.fit(X,y)
-
-    return attr_clf
-
-def dsc_tree_prediction(clf,X):
-    return clf.predict(X)
-
 def create_label_to_atr_dict():
-    global labels_to_atrs_dict
     labels_list = load_label('attributes_per_class.txt')
     atrs_list = load_label_attr('attributes_per_class.txt')
     for label in labels_list:
@@ -39,7 +29,6 @@ def create_label_to_atr_dict():
 
 def label_to_atr(label):
     return labels_to_atrs_dict[label]
-
 def atr_to_label(atr):
     for key,value in labels_to_atrs_dict.items():
         if set(value) == set(atr):
@@ -48,19 +37,18 @@ def atr_to_label(atr):
     return dsc_tree_prediction(tree,atr)
 
 def create_train_pics_dict():
-    global train_pics_dict
     file_name = "train.txt"
     with open(file_name) as pics_labels:
         content = pics_labels.read().split('\n')
     pics_list = [x.split('\t')[0] for x in content][:-1]
     lables_list = [x.split('\t')[1:] for x in content][:-1]
     for pic in pics_list:
-        train_pics_dict[pic] = lables_list[pics_list.index(pic)]
+        train_pics_dict[pic] = lables_list[pics_list.index(pic)][0]
 def create_test_pics_list():
-    global test_pics_list
     file_name = "image.txt"
     with open(file_name) as pics_labels:
-        test_pics_list = pics_labels.read().split('\n')[:-1]
+        a = pics_labels.read().split('\n')[:-1]
+        test_pics_list.extend(a)
 def load_pic(pic_name,train_flag):
     if train_flag:
         pic = "train/"+pic_name
@@ -68,10 +56,25 @@ def load_pic(pic_name,train_flag):
         pic = "test/"+pic_name
     return Image.open(pic)
 
+def create_train_pic_atr_dict():
+    for pic,label in train_pics_dict.items():
+        train_pics_to_attr_dict[pic] = labels_to_atrs_dict[label]
+
+
+def dsc_tree_train(X,y):
+    attr_clf = tree.DecisionTreeClassifier()
+    attr_clf.fit(X,y)
+
+    return attr_clf
+def dsc_tree_prediction(clf,X):
+    return clf.predict(X)
+
+
 def initialize():
     create_label_to_atr_dict()
     create_test_pics_list()
     create_train_pics_dict()
+    create_train_pic_atr_dict()
 # def write_submition(img_name,label,write_in_new_file_flag):
 
 
