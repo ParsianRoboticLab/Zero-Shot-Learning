@@ -2,6 +2,9 @@ from sklearn import tree
 import numpy as np
 from PIL import Image
 from params import *
+import pickle
+
+
 
 
 def load_label(file_name):
@@ -29,6 +32,7 @@ def create_label_to_atr_dict():
 
 def label_to_atr(label):
     return labels_to_atrs_dict[label]
+
 def atr_to_label(atr):
     for key,value in labels_to_atrs_dict.items():
         if set(value) == set(atr):
@@ -64,17 +68,36 @@ def create_train_pic_atr_dict():
 def dsc_tree_train(X,y):
     attr_clf = tree.DecisionTreeClassifier()
     attr_clf.fit(X,y)
-
     return attr_clf
+
 def dsc_tree_prediction(clf,X):
     return clf.predict(X)
 
+def save_obj(obj, name ):
+    with open('obj/'+ name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_obj(name):
+    with open('obj/' + name + '.pkl', 'rb') as f:
+        return pickle.load(f)
 
 def initialize():
-    create_label_to_atr_dict()
-    create_test_pics_list()
-    create_train_pics_dict()
-    create_train_pic_atr_dict()
+    global labels_to_atrs_dict, train_pics_to_attr_dict, train_pics_dict
+    try:
+        labels_to_atrs_dict = np.load('labels_to_atrs_dict.npy').items()
+    except:
+        create_label_to_atr_dict()
+        np.save('labels_to_atrs_dict.npy',labels_to_atrs_dict)
+    try:
+        train_pics_dict = np.load('train_pics_dict.npy').items()
+    except:
+        create_train_pics_dict()
+        np.save('train_pics_dict.npy',train_pics_dict)
+    try:
+        train_pics_to_attr_dict = np.load('train_pics_to_attr_dict.npy').items()
+    except:
+        create_train_pic_atr_dict()
+        np.save('train_pics_to_attr_dict.npy',train_pics_to_attr_dict)
 # def write_submition(img_name,label,write_in_new_file_flag):
 
 
