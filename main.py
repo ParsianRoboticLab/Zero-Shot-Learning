@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import numpy as np
 
 #print(attr)
-torch.set_num_threads(128)
+torch.set_num_threads(16)
 train_loader = load_train_images()
 train_loader_valid = load_train_images_validation()
 ####### CNN
