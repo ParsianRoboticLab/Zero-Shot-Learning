@@ -12,9 +12,9 @@ normalize = transforms.Normalize(
    std=[0.229, 0.224, 0.225]
 )
 preprocess = transforms.Compose([
-   transforms.Scale(64),
-   transforms.ToTensor(),
-   normalize
+    transforms.Scale(64),
+    transforms.ToTensor(),
+    normalize
 ])
 
 def LoadData(dir, trainPercentage):
@@ -29,6 +29,8 @@ def LoadData(dir, trainPercentage):
         for filename in filenames:
             filepath = path.join(dirpath, filename)
             img = Image.open(filepath)
+            if img.layers != 3:
+                continue
             img_tensor = preprocess(img)
             if(i <= int(trainPercentage * total)):
                 train.append(img_tensor)
@@ -44,7 +46,7 @@ trainImgs = []
 trainNames = []
 validImgs =[]
 validNames =[]
-(trainImgs,trainNames,validImgs,validNames) = LoadData('Ttest',0.7)
+(trainImgs,trainNames,validImgs,validNames) = LoadData('train',0.7)
 
 initialize()
 

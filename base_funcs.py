@@ -35,10 +35,14 @@ def label_to_atr(label):
 
 def atr_to_label(atr):
     for key,value in labels_to_atrs_dict.items():
-        if set(value) == set(atr):
-            return key
+        try:
+            if set(value) == set(atr):
+                return key
+        except:
+            print('key is:', key, 'value shape is:', value.shape, 'atr shape is:', atr.shape)
     tree = dsc_tree_train(load_label_attr('attributes_per_class.txt'),load_label('attributes_per_class.txt'))
-    return dsc_tree_prediction(tree,atr)
+    tst_atr = np.array([atr])
+    return dsc_tree_prediction(tree,tst_atr)
 
 def create_train_pics_dict():
     file_name = "train.txt"

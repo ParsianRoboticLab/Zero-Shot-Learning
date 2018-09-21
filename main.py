@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import numpy as np
 
 #print(attr)
-
+torch.set_num_threads(128)
 train_loader = load_train_images()
 train_loader_valid = load_train_images_validation()
 ####### CNN
@@ -36,39 +36,62 @@ model = Net()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
 
 def train(epoch):
+    print("train started")
+    global train_loader
     model.train()
+    # try:
     for batch_idx,data in enumerate(train_loader):
+        #print("in train loop   ",batch_idx)
         #data, target = Variable(data), Variable(target)
         data = Variable(data)
         optimizer.zero_grad()
         output = model(data)
         #print(output)
         criterion = nn.MSELoss()
-        loss = criterion(output, target)
+        try:
+            loss = criterion(output, target[batch_idx*64:(batch_idx+1)*64])
+        except:
+            loss = criterion(output, target[batch_idx * 64: ])
         loss.backward()
         #print(model.conv1.bias.grad)
 
         optimizer.step()
 
-        if batch_idx % 10 == 0:
+        if(batch_idx% 10 == 0) :
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.data[0]))
+    # except:
+    #     for img in train_loader.dataset:
+    #         if img.shape != torch.Size([3,64,64]):
+    #             ews = type(train_loader.dataset)
+    #             idvv = train_loader.dataset.index(img)
+    #             print(trainNames[train_loader.dataset.index(img)])
+correctCounter = 0
+
 
 def test():
+    global correctCounter
+    correctCounter = 0
     for batch_idx,data in enumerate(train_loader_valid):
         data = Variable(data)
         output = model(data)
         output = output.detach().numpy()
 
         print(batch_idx)
+        counter = 0
         for op in output:
-           # m = np.array(op).reshape(-1, 1).transpose()
-            print(atr_to_label(op.reshape(-1,1)[:,0]))
+            m = atr_to_label(op)
+            #print(m ,'::::' ,validNames[counter],"::::",train_pics_dict[validNames[counter]])
+            if m == train_pics_dict[validNames[counter]]:
+                correctCounter = correctCounter+1
+            counter = counter + 1
+            
+            
 
-for epoch in range(1, 10):
+for epoch in range(1, 100):
     train(epoch)
-
 test()
+print("this is correct num:",correctCounter,"Pers:",correctCounter/(len(validNames)))
 
 print("alaki")
