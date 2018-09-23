@@ -135,6 +135,7 @@ optimizers = [optim.SGD(models[i].parameters(), lr=0.01, momentum=0.5) for i in 
 print("targetTest")
 
 
+
 def train(epoch):
     print("train started")
     global train_loader
@@ -159,6 +160,8 @@ def train(epoch):
             except:
                 m = target[batch_idx * 64:(batch_idx + 1) * 64]
                 loss = criterion[i](output, Variable(m[:, i].unsqueeze(0).view(-1,1)).cuda(GPU).float())
+            if loss <= 0.01:
+                continue
             loss.backward()
             # print(model.conv1.bias.grad)
 
