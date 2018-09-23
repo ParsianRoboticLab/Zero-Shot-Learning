@@ -17,7 +17,7 @@ preprocess = transforms.Compose([
     normalize
 ])
 
-def LoadData(dir, trainPercentage):
+def LoadData(dir, trainPercentage, testSize):
     train = []
     trainLabels = []
     validation = []
@@ -35,9 +35,11 @@ def LoadData(dir, trainPercentage):
             if(i <= int(trainPercentage * total)):
                 train.append(img_tensor)
                 trainLabels.append(filepath.split('/')[1])
-            else:
+            elif len(validation) <= testSize:
                 validation.append(img_tensor)
                 validLabels.append(filepath.split('/')[1])
+            else:
+                break
             i = i + 1
     return train, trainLabels, validation, validLabels
 
@@ -46,7 +48,7 @@ trainImgs = []
 trainNames = []
 validImgs =[]
 validNames =[]
-(trainImgs,trainNames,validImgs,validNames) = LoadData('train',0.7)
+(trainImgs,trainNames,validImgs,validNames) = LoadData('train',0.5,1000000)
 
 initialize()
 
