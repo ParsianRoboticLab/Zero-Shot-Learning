@@ -36,14 +36,15 @@ targetLearnSize = 1
 
 
 #
-class Net(nn.Module):
+class NetDis(nn.Module):
 
     def __init__(self):
-        super(Net, self).__init__()
+        super(NetDis, self).__init__()
         self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
         self.mp = nn.MaxPool2d(2)
         self.fc = nn.Linear(3380, targetLearnSize)
+        self.active = nn.Hardtanh()
 
     def forward(self, x):
         in_size = x.size(0)
@@ -51,6 +52,37 @@ class Net(nn.Module):
         x = F.relu(self.mp(self.conv2(x)))
         x = x.view(in_size, -1)  # flatten the tensor
         x = self.fc(x)
+        x = self.active(x)
+        # b = torch.cuda.FloatTensor([0])
+        # if x >= b :
+        #     x = torch.cuda.Tensor([1])
+        # else:
+        #     x = torch.cuda.Tensor([0])
+
+        b = torch.FloatTensor([0])
+        b = b.cuda(GPU)
+        x = torch.ge(x,b).float()
+        return x  # F.log_softmax(x)
+
+
+class NetCont(nn.Module):
+
+    def __init__(self):
+        super(NetCont, self).__init__()
+        self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
+        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
+        self.mp = nn.MaxPool2d(2)
+        self.fc = nn.Linear(3380, targetLearnSize)
+        self.active = nn.Hardtanh()
+
+
+    def forward(self, x):
+        in_size = x.size(0)
+        x = F.relu(self.mp(self.conv1(x)))
+        x = F.relu(self.mp(self.conv2(x)))
+        x = x.view(in_size, -1)  # flatten the tensor
+        x = self.fc(x)
+        x = (self.active(x) + 1)/2
         return x  # F.log_softmax(x)
 
 
@@ -127,50 +159,81 @@ class Net(nn.Module):
 #         return x
 #
 # model = AttributeNetwork(64,1200,targetLearnSize)
-models = [Net() for _ in range(30)]
-for model in models:
-    model.cuda(GPU)
-optimizers = [optim.SGD(models[i].parameters(), lr=0.01, momentum=0.5) for i in range(30)]
+modelsDis = [NetDis() for _ in range(7)]
+for modelDis in modelsDis:
+    modelDis.cuda(GPU)
 
-print("targetTest")
+modelsCont = [NetCont() for _ in range(19)]
+for modelCont in modelsCont:
+    modelCont.cuda(GPU)
 
+optimizersDis = [torch.optim.Adam(modelsDis[i].parameters(),lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay = 0.01) for i in range(7)]
+
+
+optimizersCont = [torch.optim.Adam(modelsCont[i].parameters(),lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay = 0.01) for i in range(19)]
 
 
 def train(epoch):
     print("train started")
     global train_loader
-    for i in range(30):
-        models[i].train()
+    for i in range(7):
+        modelsDis[i].train()
+    for i in range(19):
+        modelsCont[i].train()
         # try:
     torch.set_num_threads(4)
     for batch_idx, data in enumerate(train_loader):
         # print("in train loop   ",batch_idx)
         # data, target = Variable(data), Variable(target)
         data = Variable(data).cuda(GPU)
-        criterion = [nn.MSELoss().cuda(GPU) for _ in range(30)]
+        criterionDis = [nn.MSELoss().cuda(GPU) for _ in range(7)]
+        criterionCont = [nn.MSELoss().cuda(GPU) for _ in range(19)]
 
 
-        for i in range(30):
-            optimizers[i].zero_grad()
-            output = models[i](data)
+        for i in range(7):
+            optimizersDis[i].zero_grad()
+            output = modelsDis[i](data)
             # print(output)
             try:
-                m = target[batch_idx * 64:(batch_idx + 1) * 64]
-                loss = criterion[i](output, Variable(m[:, i].unsqueeze(0).view(-1,1)).cuda(GPU).float())
+                m = targetDis[batch_idx * 64:(batch_idx + 1) * 64]
+                loss = criterionDis[i](output, Variable(m[:, i].unsqueeze(0).view(-1,1)).cuda(GPU).float())
             except:
-                m = target[batch_idx * 64:(batch_idx + 1) * 64]
-                loss = criterion[i](output, Variable(m[:, i].unsqueeze(0).view(-1,1)).cuda(GPU).float())
+                m = targetDis[batch_idx * 64:(batch_idx + 1) * 64]
+                loss = criterionDis[i](output, Variable(m[:, i].unsqueeze(0).view(-1,1)).cuda(GPU).float())
+
+            loss = Variable(loss, requires_grad=True)
             if loss <= 0.01:
                 continue
             loss.backward()
             # print(model.conv1.bias.grad)
 
-            optimizers[i].step()
+            optimizersDis[i].step()
 
             if batch_idx % 10 == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                     epoch, batch_idx * len(data), len(train_loader.dataset),
                     100. * batch_idx / len(train_loader), loss.data[0]))
+        for i in range(19):
+            optimizersCont[i].zero_grad()
+            output = modelsCont[i](data)
+            # print(output)
+            try:
+                m = targetCont[batch_idx * 64:(batch_idx + 1) * 64]
+                loss = criterionCont[i](output, Variable(m[:, i].unsqueeze(0).view(-1, 1)).cuda(GPU).float())
+            except:
+                m = targetCont[batch_idx * 64:(batch_idx + 1) * 64]
+                loss = criterionCont[i](output, Variable(m[:, i].unsqueeze(0).view(-1, 1)).cuda(GPU).float())
+            if loss <= 0.01:
+                continue
+            loss.backward()
+            # print(model.conv1.bias.grad)
+
+            optimizersCont[i].step()
+
+            if batch_idx % 10 == 0:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    epoch, batch_idx * len(data), len(train_loader.dataset),
+                           100. * batch_idx / len(train_loader), loss.data[0]))
     # except:
     #     for img in train_loader.dataset:
     #         if img.shape != torch.Size([3,64,64]):
@@ -180,7 +243,7 @@ def train(epoch):
 
 
 correctCounter = 0
-
+sagCounter = []
 
 
 def test():
@@ -190,31 +253,66 @@ def test():
     for batch_idx, data in enumerate(train_loader_valid):
         data = Variable(data).cuda(GPU)
         s = data.cpu().detach().numpy().shape[0]
-        testOP = np.empty([s, 30])
-        for i in range(30):
-            output = models[i](data)
+        testOPDist = np.empty([s, 7])
+        testOPCont = np.empty([s, 19])
+        testOP = np.empty([s,30])
+        for i in range(7):
+            output = modelsDis[i](data)
             output = output.cpu().detach().numpy()
-            testOP[:, i] = output.flatten()
+            testOPDist[:, i] = output.flatten()
 
+        for i in range(19):
+            output = modelsCont[i](data)
+            output = output.cpu().detach().numpy()
+            testOPCont[:, i] = output.flatten()
+
+        testOP = sagTosag1(testOPCont,testOPDist)
         print(batch_idx)
         counter = 0
-    for op in testOP:
+
+        for op in testOP:
             # m = atr_to_label(op)
             # print(m ,'::::' ,validNames[counter],"::::",train_pics_dict[validNames[counter]])
-            if op == train_pics_dict[validNames[counter]]:
+
+            testTarget = train_pics_dict[validNames[batch_idx*64 + counter]]
+            if atr_to_label(op) == testTarget:
                 correctCounter = correctCounter + 1
+            sagId = 0
+            for opp in op:
+                if opp == train_pics_to_attr_dict[trainName][sagId]:
+                    sagCounter[sagId] = sagCounter[sagId] +1
+                sagId = sagId + 1
             counter = counter + 1
 
 
 torch.set_num_threads(4)
+#
+# for epoch in range(1,20):
+#     train(epoch)
+#     idx=0;
+#     for modelDis in modelsDis:
+#         torch.save(modelDis,"Save/modelDis"+str(idx)+".pt")
+#         idx = idx+1
+#     idx = 0;
+#     for modelCont in modelsCont:
+#         torch.save(modelCont, "Save/modelCont" + str(idx) + ".pt")
+#         idx = idx + 1
 
-for epoch in range(1,50):
-    train(epoch)
-    idx=0;
-    for model in models:
-        torch.save(model,"Save/model"+str(idx)+".pt")
-        idx = idx+1
+# testId = 0
+idx = 0
+for modelDis in modelsDis:
+    modelDis = torch.load("Save/modelDis"+str(idx)+".pt")
+    idx = idx+1
+idx = 0
+for modelCont in modelsCont:
+    modelCont = torch.load("Save/modelCont" + str(idx) + ".pt")
+
+    idx = idx + 1
+
 test()
+for x in range(30) :
+    print("this is correct num:  ",x, sagCounter[x], "Pers:", correctCounter / (len(validNames)))
+
 print("this is correct num:", correctCounter, "Pers:", correctCounter / (len(validNames)))
 
 print("alaki")

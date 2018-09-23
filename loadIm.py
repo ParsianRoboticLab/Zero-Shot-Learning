@@ -48,16 +48,48 @@ trainImgs = []
 trainNames = []
 validImgs =[]
 validNames =[]
-(trainImgs,trainNames,validImgs,validNames) = LoadData('train',0.7,1000000)
+(trainImgs,trainNames,validImgs,validNames) = LoadData('train',0,10000)
 
 initialize()
 
 ####################### train
+
+def sagTosag(target):
+    npTarget = target.detach().numpy()
+    ind_dis = np.array([0, 2, 3, 4, 5, 15, 17])
+    ind_con = np.array([1, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 19, 20, 21, 22, 23, 24, 25])
+    targetDis = npTarget[:,ind_dis]
+    targetDis = torch.FloatTensor(targetDis)
+    targetCont = npTarget[:, ind_con]
+    targetCont = torch.FloatTensor(targetCont)
+    return targetCont, targetDis
+
+def sagTosag1(dataCon, dataDis):
+    # dataCon = dataCon.detach().numpy()
+    # dataDis = dataDis.detach().numpy()
+    npTarget = np.zeros([len(dataCon), 30])
+    ind_dis = np.array([0, 2, 3, 4, 5, 15, 17])
+    ind_con = np.array([1, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 19, 20, 21, 22, 23, 24, 25])
+
+    npTarget[:, ind_con] = dataCon
+    npTarget[:, ind_dis] = dataDis
+
+    return npTarget
+
 attrList = []
 for trainName in trainNames:
    attr = train_pics_to_attr_dict[trainName]
    attrList.append(attr)
 target = torch.FloatTensor(attrList)
+
+targetCont, targetDis = sagTosag(target)
+
+targetnew = sagTosag1(targetCont, targetDis)
+print(sum(sum(target.detach().numpy()[:,:26] - targetnew[:,:26])))
+
+print("targetTest")
+
+
 print("kheili alaki")
 def load_train_images(image_size=64, batch_size=64, root="./img/"):
 
