@@ -3,6 +3,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
+import argparse
+
+
+
+parser = argparse.ArgumentParser(description="Zero Shot Learning")
+parser.add_argument("-b","--batch_size",type = int, default = 32)
+parser.add_argument("-e","--episode",type = int, default= 500000)
+parser.add_argument("-t","--test_episode", type = int, default = 1000)
+parser.add_argument("-l","--learning_rate", type = float, default = 1e-5)
+parser.add_argument("-g","--gpu",type=int, default=0)
+args = parser.parse_args()
+
+
+# Hyper Parameters
+
+BATCH_SIZE = args.batch_size
+EPISODE = args.episode
+TEST_EPISODE = args.test_episode
+LEARNING_RATE = args.learning_rate
+GPU = args.gpu
 
 import numpy as np
 
@@ -108,6 +128,8 @@ class Net(nn.Module):
 #
 # model = AttributeNetwork(64,1200,targetLearnSize)
 models = [Net() for _ in range(30)]
+for model in models:
+    model.cuda(GPU)
 optimizers = [optim.SGD(models[i].parameters(), lr=0.01, momentum=0.5) for i in range(30)]
 
 print("targetTest")
@@ -123,8 +145,9 @@ def train(epoch):
     for batch_idx, data in enumerate(train_loader):
         # print("in train loop   ",batch_idx)
         # data, target = Variable(data), Variable(target)
-        data = Variable(data)
-        criterion = [nn.MSELoss() for _ in range(30)]
+        data = Variable(data).cuda(GPU)
+        criterion = [nn.MSELoss().cuda(GPU) for _ in range(30)]
+
 
         for i in range(30):
             optimizers[i].zero_grad()
@@ -132,10 +155,10 @@ def train(epoch):
             # print(output)
             try:
                 m = target[batch_idx * 64:(batch_idx + 1) * 64]
-                loss = criterion[i](output, m[:, i].unsqueeze(0).view(-1,1))
+                loss = criterion[i](output, Variable(m[:, i].unsqueeze(0).view(-1,1)).cuda(GPU).float())
             except:
                 m = target[batch_idx * 64:(batch_idx + 1) * 64]
-                loss = criterion[i](output, m[:, i].unsqueeze(0).view(-1,1))
+                loss = criterion[i](output, Variable(m[:, i].unsqueeze(0).view(-1,1)).cuda(GPU).float())
             loss.backward()
             # print(model.conv1.bias.grad)
 
@@ -162,17 +185,17 @@ def test():
     correctCounter = 0
 
     for batch_idx, data in enumerate(train_loader_valid):
-        data = Variable(data)
-        s = data.detach().numpy().shape[0]
+        data = Variable(data).cuda(GPU)
+        s = data.cpu().detach().numpy().shape[0]
         testOP = np.empty([s, 30])
         for i in range(30):
             output = models[i](data)
-            output = output.detach().numpy()
+            output = output.cpu().detach().numpy()
             testOP[:, i] = output.flatten()
 
         print(batch_idx)
         counter = 0
-        for op in testOP:
+    for op in testOP:
             # m = atr_to_label(op)
             # print(m ,'::::' ,validNames[counter],"::::",train_pics_dict[validNames[counter]])
             if op == train_pics_dict[validNames[counter]]:
@@ -181,9 +204,13 @@ def test():
 
 
 torch.set_num_threads(4)
-for epoch in range(1, 2):
-    train(epoch)
 
+for epoch in range(1,50):
+    train(epoch)
+    idx=0;
+    for model in models:
+        torch.save(model,"Save/model"+str(idx)+".pt")
+        idx = idx+1
 test()
 print("this is correct num:", correctCounter, "Pers:", correctCounter / (len(validNames)))
 

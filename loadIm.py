@@ -48,7 +48,7 @@ trainImgs = []
 trainNames = []
 validImgs =[]
 validNames =[]
-(trainImgs,trainNames,validImgs,validNames) = LoadData('train',0.01,10)
+(trainImgs,trainNames,validImgs,validNames) = LoadData('train',0.7,1000000)
 
 initialize()
 
