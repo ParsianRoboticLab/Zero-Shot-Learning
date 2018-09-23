@@ -3,24 +3,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
-import torch.multiprocessing as mp
-from cython.parallel import parallel,prange
 
 import numpy as np
 
-#print(attr)
+# print(attr)
 
 train_loader = load_train_images()
 train_loader_valid = load_train_images_validation()
 ####### CNN
 
 targetLearnSize = 1
+
+
 #
 class Net(nn.Module):
 
     def __init__(self):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 10, kernel_size=5 )
+        self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
         self.mp = nn.MaxPool2d(2)
         self.fc = nn.Linear(3380, targetLearnSize)
@@ -31,7 +31,8 @@ class Net(nn.Module):
         x = F.relu(self.mp(self.conv2(x)))
         x = x.view(in_size, -1)  # flatten the tensor
         x = self.fc(x)
-        return x#F.log_softmax(x)
+        return x  # F.log_softmax(x)
+
 
 #
 #
@@ -106,82 +107,84 @@ class Net(nn.Module):
 #         return x
 #
 # model = AttributeNetwork(64,1200,targetLearnSize)
-models = []
-optimizers = []
-for i in range(30):
-    models[i] = Net()
-    optimizers[i] = optim.SGD(models[i].parameters(), lr=0.01, momentum=0.5)
+models = [Net() for _ in range(30)]
+optimizers = [optim.SGD(models[i].parameters(), lr=0.01, momentum=0.5) for i in range(30)]
 
 print("targetTest")
-def train(epoch):
 
+
+def train(epoch):
     print("train started")
     global train_loader
     for i in range(30):
         models[i].train()
         # try:
     torch.set_num_threads(4)
-    with parallel(num_threads = 4):
-        criterion=[]
-        for batch_idx,data in enumerate(train_loader):
-            #print("in train loop   ",batch_idx)
-            #data, target = Variable(data), Variable(target)
-            data = Variable(data)
-            for i in range(30):
-                optimizers[i].zero_grad()
-                output = models[i](data)
-                #print(output)
-                criterion[i] = nn.MSELoss()
-                try:
-                    m = target[batch_idx*64:(batch_idx+1)*64]
-                    loss = criterion[i](output, m[:,i])
-                except:
-                    m = target[batch_idx * 64:(batch_idx + 1) * 64]
-                    loss = criterion[i](output, m[:,i])
-                loss.backward()
-                #print(model.conv1.bias.grad)
+    for batch_idx, data in enumerate(train_loader):
+        # print("in train loop   ",batch_idx)
+        # data, target = Variable(data), Variable(target)
+        data = Variable(data)
+        criterion = [nn.MSELoss() for _ in range(30)]
 
-                optimizers[i].step()
+        for i in range(30):
+            optimizers[i].zero_grad()
+            output = models[i](data)
+            # print(output)
+            try:
+                m = target[batch_idx * 64:(batch_idx + 1) * 64]
+                loss = criterion[i](output, m[:, i].unsqueeze(0).view(-1,1))
+            except:
+                m = target[batch_idx * 64:(batch_idx + 1) * 64]
+                loss = criterion[i](output, m[:, i].unsqueeze(0).view(-1,1))
+            loss.backward()
+            # print(model.conv1.bias.grad)
 
-                if(batch_idx% 10 == 0) :
-                    print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                        epoch, batch_idx * len(data), len(train_loader.dataset),
-                        100. * batch_idx / len(train_loader), loss.data[0]))
+            optimizers[i].step()
+
+            if batch_idx % 10 == 0:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    epoch, batch_idx * len(data), len(train_loader.dataset),
+                    100. * batch_idx / len(train_loader), loss.data[0]))
     # except:
     #     for img in train_loader.dataset:
     #         if img.shape != torch.Size([3,64,64]):
     #             ews = type(train_loader.dataset)
     #             idvv = train_loader.dataset.index(img)
     #             print(trainNames[train_loader.dataset.index(img)])
+
+
 correctCounter = 0
 
-testOP = []
+
+
 def test():
     global correctCounter
     correctCounter = 0
-    with parallel(num_threads=4):
-        for batch_idx,data in enumerate(train_loader_valid):
-            data = Variable(data)
-            for i in range(30):
-                output = models[i](data)
-                output = output.detach().numpy()
-                testOP[:,i] = output
 
-            print(batch_idx)
-            counter = 0
-            for op in testOP:
-                #m = atr_to_label(op)
-                #print(m ,'::::' ,validNames[counter],"::::",train_pics_dict[validNames[counter]])
-                if op == train_pics_dict[validNames[counter]]:
-                    correctCounter = correctCounter+1
-                counter = counter + 1
+    for batch_idx, data in enumerate(train_loader_valid):
+        data = Variable(data)
+        s = data.detach().numpy().shape[0]
+        testOP = np.empty([s, 30])
+        for i in range(30):
+            output = models[i](data)
+            output = output.detach().numpy()
+            testOP[:, i] = output.flatten()
 
-            
+        print(batch_idx)
+        counter = 0
+        for op in testOP:
+            # m = atr_to_label(op)
+            # print(m ,'::::' ,validNames[counter],"::::",train_pics_dict[validNames[counter]])
+            if op == train_pics_dict[validNames[counter]]:
+                correctCounter = correctCounter + 1
+            counter = counter + 1
+
+
 torch.set_num_threads(4)
-with parallel(num_threads = 16):
-    for epoch in range(1, 2 ):
-        train(epoch)
+for epoch in range(1, 2):
+    train(epoch)
+
 test()
-print("this is correct num:",correctCounter,"Pers:",correctCounter/(len(validNames)))
+print("this is correct num:", correctCounter, "Pers:", correctCounter / (len(validNames)))
 
 print("alaki")

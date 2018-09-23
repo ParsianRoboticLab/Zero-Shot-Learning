@@ -12,7 +12,7 @@ normalize = transforms.Normalize(
    std=[0.229, 0.224, 0.225]
 )
 preprocess = transforms.Compose([
-    transforms.Scale(64),
+    transforms.Resize(64),
     transforms.ToTensor(),
     normalize
 ])
@@ -32,7 +32,7 @@ def LoadData(dir, trainPercentage, testSize):
             if img.layers != 3:
                 continue
             img_tensor = preprocess(img)
-            if(i <= int(trainPercentage * total)):
+            if i <= int(trainPercentage * total):
                 train.append(img_tensor)
                 trainLabels.append(filepath.split('/')[1])
             elif len(validation) <= testSize:
@@ -48,7 +48,7 @@ trainImgs = []
 trainNames = []
 validImgs =[]
 validNames =[]
-(trainImgs,trainNames,validImgs,validNames) = LoadData('train',0.5,1000000)
+(trainImgs,trainNames,validImgs,validNames) = LoadData('train',0.01,10)
 
 initialize()
 
