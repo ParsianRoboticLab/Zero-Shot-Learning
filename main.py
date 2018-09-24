@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 import argparse
+import math
 
 
 
@@ -243,7 +244,7 @@ def train(epoch):
 
 
 correctCounter = 0
-sagCounter = []
+sagCounter = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 
 
 def test():
@@ -265,22 +266,21 @@ def test():
             output = modelsCont[i](data)
             output = output.cpu().detach().numpy()
             testOPCont[:, i] = output.flatten()
-
-        testOP = sagTosag1(testOPCont,testOPDist)
         print(batch_idx)
         counter = 0
+        testOP = sagTosag1(testOPCont,testOPDist)
 
         for op in testOP:
             # m = atr_to_label(op)
             # print(m ,'::::' ,validNames[counter],"::::",train_pics_dict[validNames[counter]])
-
             testTarget = train_pics_dict[validNames[batch_idx*64 + counter]]
             if atr_to_label(op) == testTarget:
                 correctCounter = correctCounter + 1
             sagId = 0
             for opp in op:
-                if opp == train_pics_to_attr_dict[trainName][sagId]:
+                if math.fabs(opp - train_pics_to_attr_dict[trainName][sagId]) < 0.1:
                     sagCounter[sagId] = sagCounter[sagId] +1
+                    
                 sagId = sagId + 1
             counter = counter + 1
 
