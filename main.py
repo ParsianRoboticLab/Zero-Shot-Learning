@@ -1,240 +1,262 @@
-from loadIm import *
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
-import argparse
-import math
-
-
-
-parser = argparse.ArgumentParser(description="Zero Shot Learning")
-parser.add_argument("-b","--batch_size",type = int, default = 32)
-parser.add_argument("-e","--episode",type = int, default= 500000)
-parser.add_argument("-t","--test_episode", type = int, default = 1000)
-parser.add_argument("-l","--learning_rate", type = float, default = 1e-5)
-parser.add_argument("-g","--gpu",type=int, default=0)
-args = parser.parse_args()
-
-
-# Hyper Parameters
-
-BATCH_SIZE = args.batch_size
-EPISODE = args.episode
-TEST_EPISODE = args.test_episode
-LEARNING_RATE = args.learning_rate
-GPU = args.gpu
-
 import numpy as np
 
-# print(attr)
+from base_funcs import *
+from loadIm import *
+import os
 
+# print(attr)
+torch.set_num_threads(16)
 train_loader = load_train_images()
 train_loader_valid = load_train_images_validation()
 ####### CNN
 
-targetLearnSize = 1
+targetLearnSize = 30
 
+class Bottleneck(nn.Module):
+    expansion = 4
 
-#
-class NetDis(nn.Module):
-
-    def __init__(self):
-        super(NetDis, self).__init__()
-        self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-        self.mp = nn.MaxPool2d(2)
-        self.fc = nn.Linear(3380, targetLearnSize)
-        self.active = nn.Hardtanh()
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(Bottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
+                               padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, planes * self.expansion, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes * self.expansion)
+        self.relu = nn.ReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
 
     def forward(self, x):
-        in_size = x.size(0)
-        x = F.relu(self.mp(self.conv1(x)))
-        x = F.relu(self.mp(self.conv2(x)))
-        x = x.view(in_size, -1)  # flatten the tensor
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+class ResNet(nn.Module):
+
+    def __init__(self, block, layers, num_classes=160):
+        self.inplanes = 64
+        super(ResNet, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.active = nn.Tanh()
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.avgpool = nn.AvgPool2d(2, stride=1)
+        self.fc = nn.Linear(512 * block.expansion, num_classes)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
         x = self.fc(x)
         x = self.active(x)
-        # b = torch.cuda.FloatTensor([0])
-        # if x >= b :
-        #     x = torch.cuda.Tensor([1])
-        # else:
-        #     x = torch.cuda.Tensor([0])
-
-        b = torch.FloatTensor([0])
-        b = b.cuda(GPU)
-        x = torch.ge(x,b).float()
-        return x  # F.log_softmax(x)
+        return x
 
 
-class NetCont(nn.Module):
+# models = [ResNet(Bottleneck, [3, 8, 36, 3]) for _ in range(1)]
+#
 
-    def __init__(self):
-        super(NetCont, self).__init__()
-        self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-        self.mp = nn.MaxPool2d(2)
-        self.fc = nn.Linear(3380, targetLearnSize)
-        self.active = nn.Hardtanh()
 
+
+
+
+##############
+"""
+squeezenet
+"""
+
+class Fire(nn.Module):
+
+    def __init__(self, inplanes, squeeze_planes,
+                 expand1x1_planes, expand3x3_planes):
+        super(Fire, self).__init__()
+        self.inplanes = inplanes
+        self.squeeze = nn.Conv2d(inplanes, squeeze_planes, kernel_size=1)
+        self.squeeze_activation = nn.ReLU(inplace=True)
+        self.expand1x1 = nn.Conv2d(squeeze_planes, expand1x1_planes,
+                                   kernel_size=1)
+        self.expand1x1_activation = nn.ReLU(inplace=True)
+        self.expand3x3 = nn.Conv2d(squeeze_planes, expand3x3_planes,
+                                   kernel_size=3, padding=1)
+        self.expand3x3_activation = nn.ReLU(inplace=True)
 
     def forward(self, x):
-        in_size = x.size(0)
-        x = F.relu(self.mp(self.conv1(x)))
-        x = F.relu(self.mp(self.conv2(x)))
-        x = x.view(in_size, -1)  # flatten the tensor
-        x = self.fc(x)
-        x = (self.active(x) + 1)/2
-        return x  # F.log_softmax(x)
+        x = self.squeeze_activation(self.squeeze(x))
+        return torch.cat([
+            self.expand1x1_activation(self.expand1x1(x)),
+            self.expand3x3_activation(self.expand3x3(x))
+        ], 1)
 
 
-#
-#
-# class InceptionA(nn.Module):
-#
-#     def __init__(self, in_channels):
-#         super(InceptionA, self).__init__()
-#         self.branch1x1 = nn.Conv2d(in_channels, 16, kernel_size=1)
-#
-#         self.branch5x5_1 = nn.Conv2d(in_channels, 16, kernel_size=1)
-#         self.branch5x5_2 = nn.Conv2d(16, 24, kernel_size=5, padding=2)
-#
-#         self.branch3x3dbl_1 = nn.Conv2d(in_channels, 16, kernel_size=1)
-#         self.branch3x3dbl_2 = nn.Conv2d(16, 24, kernel_size=3, padding=1)
-#         self.branch3x3dbl_3 = nn.Conv2d(24, 24, kernel_size=3, padding=1)
-#
-#         self.branch_pool = nn.Conv2d(in_channels, 24, kernel_size=1)
-#
-#     def forward(self, x):
-#         branch1x1 = self.branch1x1(x)
-#
-#         branch5x5 = self.branch5x5_1(x)
-#         branch5x5 = self.branch5x5_2(branch5x5)
-#
-#         branch3x3dbl = self.branch3x3dbl_1(x)
-#         branch3x3dbl = self.branch3x3dbl_2(branch3x3dbl)
-#         branch3x3dbl = self.branch3x3dbl_3(branch3x3dbl)
-#
-#         branch_pool = F.avg_pool2d(x, kernel_size=3, stride=1, padding=1)
-#         branch_pool = self.branch_pool(branch_pool)
-#
-#         outputs = [branch1x1, branch5x5, branch3x3dbl, branch_pool]
-#         return torch.cat(outputs, 1)
-#
-#
-# class Net(nn.Module):
-#
-#     def __init__(self):
-#         super(Net, self).__init__()
-#         self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
-#         self.conv2 = nn.Conv2d(88, 20, kernel_size=5)
-#
-#         self.incept1 = InceptionA(in_channels=10)
-#         self.incept2 = InceptionA(in_channels=20)
-#
-#         self.mp = nn.MaxPool2d(2)
-#         self.fc = nn.Linear(14872, targetLearnSize)
-#
-#     def forward(self, x):
-#         in_size = x.size(0)
-#         x = F.relu(self.mp(self.conv1(x)))
-#         x = self.incept1(x)
-#         x = F.relu(self.mp(self.conv2(x)))
-#         x = self.incept2(x)
-#         x = x.view(in_size, -1)  # flatten the tensor
-#         x = self.fc(x)
-#         return x#F.log_softmax(x)
-#
+class SqueezeNet(nn.Module):
 
-# class AttributeNetwork(nn.Module):
-#     """docstring for RelationNetwork"""
-#     def __init__(self,input_size,hidden_size,output_size):
-#         super(AttributeNetwork, self).__init__()
-#         self.fc1 = nn.Linear(input_size,hidden_size)
-#         self.fc2 = nn.Linear(hidden_size,output_size)
-#
-#     def forward(self,x):
-#
-#         x = F.relu(self.fc1(x))
-#         x = F.relu(self.fc2(x))
-#
-#         return x
-#
-# model = AttributeNetwork(64,1200,targetLearnSize)
-modelsDis = [NetDis() for _ in range(7)]
-for modelDis in modelsDis:
-    modelDis.cuda(GPU)
+    def __init__(self, version=1.1, num_classes=160):
+        super(SqueezeNet, self).__init__()
+        if version not in [1.0, 1.1]:
+            raise ValueError("Unsupported SqueezeNet version {version}:"
+                             "1.0 or 1.1 expected".format(version=version))
+        self.num_classes = num_classes
+        if version == 1.0:
+            self.features = nn.Sequential(
+                nn.Conv2d(3, 96, kernel_size=7, stride=2),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+                Fire(96, 16, 64, 64),
+                Fire(128, 16, 64, 64),
+                Fire(128, 32, 128, 128),
+                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+                Fire(256, 32, 128, 128),
+                Fire(256, 48, 192, 192),
+                Fire(384, 48, 192, 192),
+                Fire(384, 64, 256, 256),
+                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+                Fire(512, 64, 256, 256),
+            )
+        else:
+            self.features = nn.Sequential(
+                nn.Conv2d(3, 64, kernel_size=3, stride=2),
+                nn.ReLU(inplace=True),
+                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+                Fire(64, 16, 64, 64),
+                Fire(128, 16, 64, 64),
+                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+                Fire(128, 32, 128, 128),
+                Fire(256, 32, 128, 128),
+                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+                Fire(256, 48, 192, 192),
+                Fire(384, 48, 192, 192),
+                Fire(384, 64, 256, 256),
+                Fire(512, 64, 256, 256),
+            )
+        # Final convolution is initialized differently form the rest
+        final_conv = nn.Conv2d(512, self.num_classes, kernel_size=1)
+        self.classifier = nn.Sequential(
+            nn.Dropout(p=0.5),
+            final_conv,
+            nn.Tanh(),
+            nn.MaxPool2d(3, stride=1)
+        )
 
-modelsCont = [NetCont() for _ in range(19)]
-for modelCont in modelsCont:
-    modelCont.cuda(GPU)
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                if m is final_conv:
+                    init.normal_(m.weight, mean=0.0, std=0.01)
+                else:
+                    init.kaiming_uniform_(m.weight)
+                if m.bias is not None:
+                    init.constant_(m.bias, 0)
 
-optimizersDis = [torch.optim.Adam(modelsDis[i].parameters(),lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay = 0.01) for i in range(7)]
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        return x.view(x.size(0), self.num_classes)
 
+# model = SqueezeNet(version=1.1)
+# model.cuda()
 
-optimizersCont = [torch.optim.Adam(modelsCont[i].parameters(),lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay = 0.01) for i in range(19)]
+#############
+try:
+    model = torch.load("Save/model.pt")
+    model.cuda()
+except:
+    model = ResNet(Bottleneck, [3, 8, 36, 3])
+    # model = SqueezeNet(version=1.1)
+    model.cuda()
+
+# optimizer = torch.optim.Adam(model.parameters(),lr=0.01, betas=(0.9, 0.999))
+# optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.5)
+optimizer = torch.optim.Adam(model.parameters(),lr=0.05, betas=(0.9, 0.999), eps=1e-08, weight_decay = 0.01)
 
 
 def train(epoch):
+    batchSize = 4
     print("train started")
     global train_loader
-    for i in range(7):
-        modelsDis[i].train()
-    for i in range(19):
-        modelsCont[i].train()
-        # try:
-    torch.set_num_threads(4)
-    for batch_idx, data in enumerate(train_loader):
+    model.train()
+    # try:
+    for batch_idx ,data in enumerate(train_loader):
         # print("in train loop   ",batch_idx)
         # data, target = Variable(data), Variable(target)
-        data = Variable(data).cuda(GPU)
-        criterionDis = [nn.MSELoss().cuda(GPU) for _ in range(7)]
-        criterionCont = [nn.MSELoss().cuda(GPU) for _ in range(19)]
+        data = Variable(data).cuda()
+        optimizer.zero_grad()
+        output = model(data)
+        # print(output)
+        criterion = nn.MSELoss()
+        try:
+            loss = criterion(output, Variable(target[batch_idx *batchSize:(batch_idx +1 ) *batchSize]).cuda())
+        except:
+            loss = criterion(output, Variable(target[batch_idx * batchSize: ]).cuda())
+        loss.backward()
+        # print(model.conv1.bias.grad)
 
+        optimizer.step()
 
-        for i in range(7):
-            optimizersDis[i].zero_grad()
-            output = modelsDis[i](data)
-            # print(output)
-            try:
-                m = targetDis[batch_idx * 64:(batch_idx + 1) * 64]
-                loss = criterionDis[i](output, Variable(m[:, i].unsqueeze(0).view(-1,1)).cuda(GPU).float())
-            except:
-                m = targetDis[batch_idx * 64:(batch_idx + 1) * 64]
-                loss = criterionDis[i](output, Variable(m[:, i].unsqueeze(0).view(-1,1)).cuda(GPU).float())
-
-            loss = Variable(loss, requires_grad=True)
-            if loss <= 0.01:
-                continue
-            loss.backward()
-            # print(model.conv1.bias.grad)
-
-            optimizersDis[i].step()
-
-            if batch_idx % 10 == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
-                    100. * batch_idx / len(train_loader), loss.data[0]))
-        for i in range(19):
-            optimizersCont[i].zero_grad()
-            output = modelsCont[i](data)
-            # print(output)
-            try:
-                m = targetCont[batch_idx * 64:(batch_idx + 1) * 64]
-                loss = criterionCont[i](output, Variable(m[:, i].unsqueeze(0).view(-1, 1)).cuda(GPU).float())
-            except:
-                m = targetCont[batch_idx * 64:(batch_idx + 1) * 64]
-                loss = criterionCont[i](output, Variable(m[:, i].unsqueeze(0).view(-1, 1)).cuda(GPU).float())
-            if loss <= 0.01:
-                continue
-            loss.backward()
-            # print(model.conv1.bias.grad)
-
-            optimizersCont[i].step()
-
-            if batch_idx % 10 == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
-                           100. * batch_idx / len(train_loader), loss.data[0]))
+        if(batch_idx% 10 == 0) :
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset),
+                       100. * batch_idx / len(train_loader), loss.data[0]))
     # except:
     #     for img in train_loader.dataset:
     #         if img.shape != torch.Size([3,64,64]):
@@ -244,75 +266,83 @@ def train(epoch):
 
 
 correctCounter = 0
-sagCounter = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+correctAttrCounter = []
+for i in range(50):
+    correctAttrCounter.append(0)
 
 
 def test():
     global correctCounter
     correctCounter = 0
-
+    batchS = 8
     for batch_idx, data in enumerate(train_loader_valid):
-        data = Variable(data).cuda(GPU)
-        s = data.cpu().detach().numpy().shape[0]
-        testOPDist = np.empty([s, 7])
-        testOPCont = np.empty([s, 19])
-        testOP = np.empty([s,30])
-        for i in range(7):
-            output = modelsDis[i](data)
-            output = output.cpu().detach().numpy()
-            testOPDist[:, i] = output.flatten()
 
-        for i in range(19):
-            output = modelsCont[i](data)
-            output = output.cpu().detach().numpy()
-            testOPCont[:, i] = output.flatten()
+        data = Variable(data).cuda()
+        #        s = data.detach().numpy().shape[0]
+        #       testOP = np.empty([s, 30])
+        #         for i in range(len(models)):
+        #             output = models[i](data)
+        #             output = output.detach().numpy()
+        #             testOP[:, i] = output.flatten()
+        output = model(data).cpu().detach().numpy()
+        label_list = list(seen_readable_to_label_dict.values())
+        for i in range(output.shape[0]):
+            hot_vector = output[i ,:] / np.sum(output[i ,:])
+            avg_sum = np.zeros(len(list(labels_to_atrs_dict.values())[0]))
+            for j in range(len(hot_vector)):
+                avg_sum += hot_vector[j] * labels_to_atrs_dict[label_list[j]]
+            hot_lbl = simpleDap(avg_sum)
+            # hot_lbl = label_list[np.argmax(output[i,:])]
+            if train_pics_dict[validNames[ i +batch_idx *batchS]] == hot_lbl:
+                correctCounter += 1
+
         print(batch_idx)
         counter = 0
-        testOP = sagTosag1(testOPCont,testOPDist)
+        # print(output.shape)
+        # for op in output:
+        #     # m = atr_to_label(op)
+        #     # print(m ,'::::' ,validNames[counter],"::::",train_pics_dict[validNames[counter]])
+        #     #             print(newAttr_to_label(op))
+        #     #             print(train_pics_dict[validNames[counter +  batch_idx*64]])
+        #     #             print('test',op)
+        #     #             print('real',train_pics_to_attr_dict[validNames[counter +  batch_idx*64]])
+        #     mahi = simpleDap(op)
+        #     ################### correct Attr
+        #     # print(counter + batch_idx * batchS)
+        #     picName = validNames[counter + batch_idx * batchS]
+        #     sagId = 0
+        #     # print(op.shape)
+        #     for opp in op:
+        #
+        #         if math.fabs(opp - train_pics_to_attr_dict[picName][sagId]) < 0.1:
+        #             correctAttrCounter[sagId] = correctAttrCounter[sagId] + 1
+        #         sagId = sagId + 1
+        #     # print(mahi)
+        #     if mahi == train_pics_dict[picName]:
+        #         correctCounter = correctCounter + 1
+        #         print(mahi)
+        #         # print(train_pics_dict[picName])
+        #         summ = 0
+        #         for s in op:
+        #             summ = summ + s
+        #     #                 print(op)
+        #     #                 print(summ)
 
-        for op in testOP:
-            # m = atr_to_label(op)
-            # print(m ,'::::' ,validNames[counter],"::::",train_pics_dict[validNames[counter]])
-            testTarget = train_pics_dict[validNames[batch_idx*64 + counter]]
-            if atr_to_label(op) == testTarget:
-                correctCounter = correctCounter + 1
-            sagId = 0
-            for opp in op:
-                if math.fabs(opp - train_pics_to_attr_dict[trainName][sagId]) < 0.1:
-                    sagCounter[sagId] = sagCounter[sagId] +1
-                    
-                sagId = sagId + 1
-            counter = counter + 1
+        # counter = counter + 1
 
 
-torch.set_num_threads(4)
-#
-# for epoch in range(1,20):
-#     train(epoch)
-#     idx=0;
-#     for modelDis in modelsDis:
-#         torch.save(modelDis,"Save/modelDis"+str(idx)+".pt")
-#         idx = idx+1
-#     idx = 0;
-#     for modelCont in modelsCont:
-#         torch.save(modelCont, "Save/modelCont" + str(idx) + ".pt")
-#         idx = idx + 1
-
-# testId = 0
-idx = 0
-for modelDis in modelsDis:
-    modelDis = torch.load("Save/modelDis"+str(idx)+".pt")
-    idx = idx+1
-idx = 0
-for modelCont in modelsCont:
-    modelCont = torch.load("Save/modelCont" + str(idx) + ".pt")
-
-    idx = idx + 1
-
+print(train_loader)
 test()
-for x in range(30) :
-    print("this is correct num:  ",x, sagCounter[x], "Pers:", correctCounter / (len(validNames)))
+print("this is correct num:" ,correctCounter ,"Pers:" ,correctCounter /(len(validNames)))
 
-print("this is correct num:", correctCounter, "Pers:", correctCounter / (len(validNames)))
+print(train_loader)
+for epoch in range(1, 10000):
+    train(epoch)
+    if(epoch %100 == 0):
+        test()
+        print("this is correct num:", correctCounter, "Pers:", correctCounter / (len(validNames)))
+    torch.save(model, "Save/model "+ ".pt")
+test()
+print("this is correct num:" ,correctCounter ,"Pers:" ,correctCounter /(len(validNames)))
 
 print("alaki")
