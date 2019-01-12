@@ -1,0 +1,50 @@
+1	is animal
+2	is transportation
+3	is clothes
+4	is plant
+5	is kitchenware
+6	is device
+7	is food
+8	is musical instrument
+9	is building
+10	is furniture
+11	is black
+12	is white
+13	is red
+14	is orange
+15	is yellow
+16	is green
+17	is blue
+18	is violet
+19	has feathers
+20	has scales
+21	has shells
+22	has four legs
+23	has two legs
+24	has two arms
+25	has wings
+26	is for entertainment
+27	is for business
+28	is for communication
+29	is for family
+30	is for office use
+31	is for personal
+32	is globular
+33	is star-shaped
+34	is cubic
+35	is cylindrical
+36	is schistose
+37	is flat
+38	is made of metal
+39	is made of plastic
+40	is made of galss
+41	is made of wood
+42	is made of cloth
+43	can be eaten directly
+44	can dive
+45	can fly
+46	can float
+47	can be driven
+48	can make lights
+49	can make sound
+50	can photograph
