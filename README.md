@@ -2,6 +2,10 @@
 
 This is Parsian Project for ZJU AI Challenge Zero-Shot Learning Competition 2018.
 
+The contest attracted a total of **3,224** team from all over the world to participate in the competition.
+
+Final result of **Parsian** team: **TOP 16**
+
 # Files
 
 
