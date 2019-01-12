@@ -61,7 +61,13 @@ Cuda compilation tools, release 9.1, V9.1.85
 1. Put train and test data images in the `data` directory as mentioned in readme.md structure
 2. Execute `main.py` to train the nn-model with provided data.
 
+## Authors
 
+[Hamed Hosseini](hellihdhs@gmail.com)
+[Alireza Zolanvari](https://github.com/AlirezaZolanvari)
+[Amir Mohammad Naderi](#)
+[Mohammad Mahdi Shirazi](https://github.com/mhmmdshirazi)
+[Mohammad Mahdi Rahimi](https://github.com/Mahi97)
 
 ## Description
 
