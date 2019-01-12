@@ -1,22 +1,14 @@
+from sklearn import tree
+import numpy as np
+from PIL import Image
+import pickle
+import torch.nn.init as init
 
 labels_to_atrs_dict = {}
 train_pics_dict={}
 train_pics_to_attr_dict = {}
 test_pics_list = []
 readable_to_label_dict = {}
-
-from sklearn import tree
-import numpy as np
-from PIL import Image
-# def register_extension(id, extension): Image.EXTENSION[extension.lower()] = id.upper()
-# Image.register_extension = register_extension
-# def register_extensions(id, extensions):
-#   for extension in extensions: register_extension(id, extension)
-# Image.register_extensions = register_extensions
-
-import pickle
-import torch.nn.init as init
-
 
 
 def load_label(file_name):
@@ -174,33 +166,33 @@ def create_unseen_readable_to_label():
 def initialize():
     global labels_to_atrs_dict, train_pics_to_attr_dict, train_pics_dict, dcs_tree,readable_to_label_dict,test_pics_list, seen_readable_to_label_dict, unseen_readable_to_label_dict
     try:
-        labels_to_atrs_dict = np.load('labels_to_atrs_dict.npy')[()]
+        labels_to_atrs_dict = np.load('labels_to_atrs_dict.npy').items()
     except:
         create_label_to_atr_dict()
         np.save('labels_to_atrs_dict.npy',labels_to_atrs_dict)
     try:
-        tr = np.load('train_pics_dict.npy')[()]
+        tr = np.load('train_pics_dict.npy').items()
         train_pics_dict = tr
     except:
         create_train_pics_dict()
         np.save('train_pics_dict.npy',train_pics_dict)
     try:
-        train_pics_to_attr_dict = np.load('train_pics_to_attr_dict.npy')[()]
+        train_pics_to_attr_dict = np.load('train_pics_to_attr_dict.npy').items()
     except:
         create_train_pic_atr_dict()
         np.save('train_pics_to_attr_dict.npy',train_pics_to_attr_dict)
     try:
-        readable_to_label_dict = np.load('readable_to_label_dict.npy')[()]
+        readable_to_label_dict = np.load('readable_to_label_dict.npy').items()
     except:
         create_readable_to_label()
         np.save('readable_to_label_dict.npy',readable_to_label_dict)
     try:
-        seen_readable_to_label_dict = np.load('seen_readable_to_label_dict.npy')[()]
+        seen_readable_to_label_dict = np.load('seen_readable_to_label_dict.npy').items()
     except:
         create_seen_readable_to_label()
         np.save('seen_readable_to_label_dict.npy',seen_readable_to_label_dict)
     try:
-        unseen_readable_to_label_dict = np.load('unseen_readable_to_label_dict.npy')[()]
+        unseen_readable_to_label_dict = np.load('unseen_readable_to_label_dict.npy').items()
     except:
         create_unseen_readable_to_label()
         np.save('unseen_readable_to_label_dict.npy',unseen_readable_to_label_dict)

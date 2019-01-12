@@ -3,18 +3,25 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 import numpy as np
-
+import gan
+gan.main()
 from base_funcs import *
 from loadIm import *
-import os
 
 # print(attr)
 torch.set_num_threads(16)
 train_loader = load_train_images()
 train_loader_valid = load_train_images_validation()
+testLoader = test_loader()
 ####### CNN
 
-targetLearnSize = 30
+
+
+final_res = {}
+
+
+
+
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -57,7 +64,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=160):
+    def __init__(self, block, layers, num_classes=225):
         self.inplanes = 64
         super(ResNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
@@ -115,107 +122,6 @@ class ResNet(nn.Module):
         return x
 
 
-# models = [ResNet(Bottleneck, [3, 8, 36, 3]) for _ in range(1)]
-#
-
-
-
-
-
-##############
-"""
-squeezenet
-"""
-
-class Fire(nn.Module):
-
-    def __init__(self, inplanes, squeeze_planes,
-                 expand1x1_planes, expand3x3_planes):
-        super(Fire, self).__init__()
-        self.inplanes = inplanes
-        self.squeeze = nn.Conv2d(inplanes, squeeze_planes, kernel_size=1)
-        self.squeeze_activation = nn.ReLU(inplace=True)
-        self.expand1x1 = nn.Conv2d(squeeze_planes, expand1x1_planes,
-                                   kernel_size=1)
-        self.expand1x1_activation = nn.ReLU(inplace=True)
-        self.expand3x3 = nn.Conv2d(squeeze_planes, expand3x3_planes,
-                                   kernel_size=3, padding=1)
-        self.expand3x3_activation = nn.ReLU(inplace=True)
-
-    def forward(self, x):
-        x = self.squeeze_activation(self.squeeze(x))
-        return torch.cat([
-            self.expand1x1_activation(self.expand1x1(x)),
-            self.expand3x3_activation(self.expand3x3(x))
-        ], 1)
-
-
-class SqueezeNet(nn.Module):
-
-    def __init__(self, version=1.1, num_classes=160):
-        super(SqueezeNet, self).__init__()
-        if version not in [1.0, 1.1]:
-            raise ValueError("Unsupported SqueezeNet version {version}:"
-                             "1.0 or 1.1 expected".format(version=version))
-        self.num_classes = num_classes
-        if version == 1.0:
-            self.features = nn.Sequential(
-                nn.Conv2d(3, 96, kernel_size=7, stride=2),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
-                Fire(96, 16, 64, 64),
-                Fire(128, 16, 64, 64),
-                Fire(128, 32, 128, 128),
-                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
-                Fire(256, 32, 128, 128),
-                Fire(256, 48, 192, 192),
-                Fire(384, 48, 192, 192),
-                Fire(384, 64, 256, 256),
-                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
-                Fire(512, 64, 256, 256),
-            )
-        else:
-            self.features = nn.Sequential(
-                nn.Conv2d(3, 64, kernel_size=3, stride=2),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
-                Fire(64, 16, 64, 64),
-                Fire(128, 16, 64, 64),
-                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
-                Fire(128, 32, 128, 128),
-                Fire(256, 32, 128, 128),
-                nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
-                Fire(256, 48, 192, 192),
-                Fire(384, 48, 192, 192),
-                Fire(384, 64, 256, 256),
-                Fire(512, 64, 256, 256),
-            )
-        # Final convolution is initialized differently form the rest
-        final_conv = nn.Conv2d(512, self.num_classes, kernel_size=1)
-        self.classifier = nn.Sequential(
-            nn.Dropout(p=0.5),
-            final_conv,
-            nn.Tanh(),
-            nn.MaxPool2d(3, stride=1)
-        )
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                if m is final_conv:
-                    init.normal_(m.weight, mean=0.0, std=0.01)
-                else:
-                    init.kaiming_uniform_(m.weight)
-                if m.bias is not None:
-                    init.constant_(m.bias, 0)
-
-    def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x)
-        return x.view(x.size(0), self.num_classes)
-
-# model = SqueezeNet(version=1.1)
-# model.cuda()
-
 #############
 try:
     model = torch.load("Save/model.pt")
@@ -231,7 +137,7 @@ optimizer = torch.optim.Adam(model.parameters(),lr=0.05, betas=(0.9, 0.999), eps
 
 
 def train(epoch):
-    batchSize = 4
+    batchSize = 16
     print("train started")
     global train_loader
     model.train()
@@ -285,7 +191,7 @@ def test():
         #             output = output.detach().numpy()
         #             testOP[:, i] = output.flatten()
         output = model(data).cpu().detach().numpy()
-        label_list = list(seen_readable_to_label_dict.values())
+        label_list = list(readable_to_label_dict.values())
         for i in range(output.shape[0]):
             hot_vector = output[i ,:] / np.sum(output[i ,:])
             avg_sum = np.zeros(len(list(labels_to_atrs_dict.values())[0]))
@@ -298,51 +204,56 @@ def test():
 
         print(batch_idx)
         counter = 0
-        # print(output.shape)
-        # for op in output:
-        #     # m = atr_to_label(op)
-        #     # print(m ,'::::' ,validNames[counter],"::::",train_pics_dict[validNames[counter]])
-        #     #             print(newAttr_to_label(op))
-        #     #             print(train_pics_dict[validNames[counter +  batch_idx*64]])
-        #     #             print('test',op)
-        #     #             print('real',train_pics_to_attr_dict[validNames[counter +  batch_idx*64]])
-        #     mahi = simpleDap(op)
-        #     ################### correct Attr
-        #     # print(counter + batch_idx * batchS)
-        #     picName = validNames[counter + batch_idx * batchS]
-        #     sagId = 0
-        #     # print(op.shape)
-        #     for opp in op:
-        #
-        #         if math.fabs(opp - train_pics_to_attr_dict[picName][sagId]) < 0.1:
-        #             correctAttrCounter[sagId] = correctAttrCounter[sagId] + 1
-        #         sagId = sagId + 1
-        #     # print(mahi)
-        #     if mahi == train_pics_dict[picName]:
-        #         correctCounter = correctCounter + 1
-        #         print(mahi)
-        #         # print(train_pics_dict[picName])
-        #         summ = 0
-        #         for s in op:
-        #             summ = summ + s
-        #     #                 print(op)
-        #     #                 print(summ)
-
-        # counter = counter + 1
 
 
 print(train_loader)
-test()
-print("this is correct num:" ,correctCounter ,"Pers:" ,correctCounter /(len(validNames)))
 
 print(train_loader)
-for epoch in range(1, 10000):
+for epoch in range(1, 20000000):
     train(epoch)
-    if(epoch %100 == 0):
-        test()
-        print("this is correct num:", correctCounter, "Pers:", correctCounter / (len(validNames)))
     torch.save(model, "Save/model "+ ".pt")
-test()
+
+
+
+manifold = False
+
+def createFinalRes():
+    global final_res
+    batchS = 16
+    for batch_idx, data in enumerate(testLoader):
+        data = Variable(data).cuda()
+        s = data.cpu().detach().numpy().shape[0]
+        testOPDist = np.empty([s, 7])
+        testOPCont = np.empty([s, 17])
+        testOP = np.empty([s, 30])
+
+        data = Variable(data).cuda()
+        output = model(data).cpu().detach().numpy()
+
+        label_list = list(readable_to_label_dict.values())
+        for i in range(output.shape[0]):
+            hot_vector = output[i, :] / np.sum(output[i, :])
+            avg_sum = np.zeros(len(list(labels_to_atrs_dict.values())[0]))
+            for j in range(len(hot_vector)):
+                avg_sum += hot_vector[j] * labels_to_atrs_dict[label_list[j]]
+            hot_lbl = simpleDap(avg_sum)
+            img_name = testNames[batch_idx * batchS + i]
+            final_res[img_name] = hot_lbl
+        print(batch_idx)
+        counter = 0
+
+
+
+#
+createFinalRes()
+import datetime
+subname = "../submit/submit_"+datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + ".txt"
+f = open(subname, 'w+')
+f.write('')
+f = open(subname, 'a+')
+for key, value in final_res.items():
+    strrr = str(key) + '\t' + str(value) + '\n'
+    f.write(strrr)
 print("this is correct num:" ,correctCounter ,"Pers:" ,correctCounter /(len(validNames)))
 
 print("alaki")
