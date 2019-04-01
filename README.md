@@ -1,10 +1,11 @@
 # Parsian Zero-Shot Learning!
+In this project the goal was recognizing the unseen picture classes using the attributes of seen classes.
 
 This is Parsian Project for ZJU AI Challenge Zero-Shot Learning Competition 2018.
 
-The contest attracted a total of **3,224** team from all over the world to participate in the competition.
+The contest attracted a total of **3224** teams from all over the world to participate in the competition.
 
-Final result of **Parsian** team: **TOP 16**
+My team **“Parsian”** ranked **14th** at the end of the competition.
 
 # Files
 
@@ -67,15 +68,16 @@ Cuda compilation tools, release 9.1, V9.1.85
 
 ## Authors
 
+[Mohammad Mahdi Shirazi](https://github.com/mhmmdshirazi)
+
+[Mohammad Mahdi Rahimi](https://github.com/Mahi97)
+
 [Hamed Hosseini](hellihdhs@gmail.com)
 
 [Alireza Zolanvari](https://github.com/AlirezaZolanvari)
 
-[Amir Mohammad Naderi](#)
+[Amir Mohammad Naderi](https://github.com/Amiiir)
 
-[Mohammad Mahdi Shirazi](https://github.com/mhmmdshirazi)
-
-[Mohammad Mahdi Rahimi](https://github.com/Mahi97)
 
 ------
 
@@ -83,41 +85,39 @@ Cuda compilation tools, release 9.1, V9.1.85
 
 ### GAN and Data Generation
 
-Due to the lack of data for unseen lables the state-of-art for this project was training a Generative Adversarial Network in order to generate the unseen dataset.
+Due to the lack of data for unseen labels, the state-of-art for this project was training a Generative Adversarial Network in order to generate the unseen dataset.
 
-According to the GAN Architecture that shows below, the generative network make random image with fake label `ZJULFAKE`. Both discriminator and generator networks will train through the response of the discriminator network to the augmunted dataset including both real and fake data.
+According to the GAN Architecture (Figure bellow), the generative network makes a random image with a fake label `ZJULFAKE`. Both discriminator and generator networks will train through the response of the discriminator network to the augmented data set including both real and fake data.
 
 ![alt text][GAN]
 
-We keep training these two network till the state that the discriminator network can not discriminate the fake and real data, this shows the perfection of the generator network.
+Training procedure of both networks continues until the state that the discriminator network cannot discriminate the fake and the real data, this shows the generator network works perfectly. At this point, the trained generator network was used in the main architecture of the learning system.
 
-At this point we use the trained generator network in the main architecture of our learning system.
-
-Now the problem simplified to a classic classification problem the we have enough data of all labels and we will train our CNN by using augumented dataset from both `Train Data` and `Generated Data`.
+Now the problem is simplified to a classic classification then the network has enough data of all labels, and the main CNN will be trained using the augmented dataset from both Train Data and Generated Data (Using GAN).
 
 ![alt text][TRAIN]
 
-Using trained CNN on test data and the result will be a `lable probability vector` for each image. 
-(This vector show the membership probability of an image for each label.)
+Using trained CNN on test data, and the result will be a **Label Probability** Vector for each image.
+(This vector shows the membership probability of an image for each label.)
 
 ![alt text][TEST]
 
 
-In the next step we get `weighted average of attribute` for each image, where membership probability of each lable will be the attributes weight for that label. Result attribue vector will be construct by weighted average of each attribute in labels.
+In the next step, a **Weighted Average** of Attribute is extracted for each image, where the membership probability of each label will be the attributes weight for that label. Result attribute vector will be constructed by a weighted average of each attribute.
 
-Now, we have a attribute vector for each image and find the match label for that attribute vector by measuring the distance of that vector on manifold that construct by attributes per label. The nearest class to image vector will be decided as the correct class for that image. 
+Now, each image has its attribute vector. Hence, finding the matched label for that attribute vector by measuring the distance of that vector on a manifold is possible. In the end, the nearest class to image vector will be selected as the correct class for that image.
 
 ![alt text][ALL]
 
 ### CNN - RESNET152
 
-To prevent vanishing gradient, we used RESNET152. RESNET use residual connections over a layer.
+To prevent the vanishing gradient, a RESNET152 has been used. Here is the RESNET152 structure.
 
 ![alt text][RESNET]
 
 
 ### Manifold
-manifold and clustring usage for find the best match label after computing the attribiutes values
+Manifold and clustering usage for find the best match label after computing the attributes values is depicted in the figure bellow.
 ![alt text][3d]
 ![alt text][t-SNE]
 ![alt text][MDS]
