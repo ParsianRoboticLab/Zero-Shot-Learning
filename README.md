@@ -3,7 +3,7 @@ In this project the goal was recognizing the unseen picture classes using the at
 
 This is Parsian Project for ZJU AI Challenge Zero-Shot Learning Competition 2018.
 
-The contest attracted a total of **3224** teams from all over the world to participate in the competition.
+The contest attracted a total of **3225** teams from all over the world to participate in the competition.
 
 My team **“Parsian”** ranked **14th** at the end of the competition.
 
