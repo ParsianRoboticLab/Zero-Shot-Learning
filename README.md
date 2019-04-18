@@ -87,7 +87,7 @@ Cuda compilation tools, release 9.1, V9.1.85
 
 Due to the lack of data for unseen labels, the state-of-art for this project was training a Generative Adversarial Network in order to generate the unseen dataset.
 
-According to the GAN Architecture (Figure bellow), the generative network makes a random image with a fake label `ZJULFAKE`. Both discriminator and generator networks will train through the response of the discriminator network to the augmented data set including both real and fake data.
+According to the GAN Architecture (Figure bellow), the generative network makes an artificial image with a fake label `ZJULFAKE`. Both discriminator and generator networks will train through the response of the discriminator network to the augmented data set including both real and fake data.
 
 ![alt text][GAN]
 
