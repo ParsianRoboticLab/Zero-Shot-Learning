@@ -105,7 +105,7 @@ The result using trained CNN on test data will be a **Label Probability** Vector
 
 In the next step, a **Weighted Average** of Attribute is extracted for each image, where the membership probability of each label will be the attributes weight for that label. Result attribute vector will be constructed by a weighted average of each attribute.
 
-Now, each image has its attribute vector. Hence, finding the matched label for that attribute vector by measuring the distance of that vector on a manifold is possible. In the end, the nearest class to image vector will be selected as the correct class for that image.
+Now, each image has its attribute vector. Hence, finding the matched label for that attribute vector by measuring the distance of that vector on a manifold is possible. At the end, the nearest class to image vector will be selected as the correct class for that image.
 
 ![alt text][ALL]
 
