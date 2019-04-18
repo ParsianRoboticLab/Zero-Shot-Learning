@@ -72,7 +72,7 @@ Cuda compilation tools, release 9.1, V9.1.85
 
 [Mohammad Mahdi Rahimi](https://github.com/Mahi97)
 
-[Hamed Hosseini](hellihdhs@gmail.com)
+[Hamed Hosseini](https://github.com/hamed-hosseini)
 
 [Alireza Zolanvari](https://github.com/AlirezaZolanvari)
 
