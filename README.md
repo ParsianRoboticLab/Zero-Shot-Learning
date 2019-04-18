@@ -5,7 +5,7 @@ This is Parsian Project for **ZJU AI Challenge Zero-Shot Learning Competition 20
 
 The contest attracted a total of **3225** teams from all over the world to participate in the competition.
 
-My team **“Parsian”** ranked **14th** at the end of the competition.
+Our team **“Parsian”** ranked **14th** at the end of the competition.
 
 # Files
 
