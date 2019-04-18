@@ -1,7 +1,7 @@
 # Parsian Zero-Shot Learning!
 In this project the goal was recognizing the unseen picture classes using the attributes of seen classes.
 
-This is Parsian Project for ZJU AI Challenge Zero-Shot Learning Competition 2018.
+This is Parsian Project for **ZJU AI Challenge Zero-Shot Learning Competition 2018**.
 
 The contest attracted a total of **3225** teams from all over the world to participate in the competition.
 
