@@ -97,7 +97,7 @@ Now the problem is simplified to a classic classification then the network has e
 
 ![alt text][TRAIN]
 
-Using trained CNN on test data, and the result will be a **Label Probability** Vector for each image.
+The result using trained CNN on test data will be a **Label Probability** Vector for each image.
 (This vector shows the membership probability of an image for each label.)
 
 ![alt text][TEST]
