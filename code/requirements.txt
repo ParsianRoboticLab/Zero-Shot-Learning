@@ -1,5 +1,4 @@
 torch>=2.6.0
-tourchvision=0.2.1
 numpy=1.15.1
 scikit-learn=0.19.2
 scipy=1.1.0
